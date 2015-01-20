@@ -33,34 +33,34 @@ doStandardMove move@Move { moveFrom = from } = do
 
 doCastle                              :: Move -> State RegularGame Bool
 doCastle move@Move { moveFrom = from
-                     , moveTo   = to }  | from == Coordinate 'e' 1 && to == Coordinate 'g' 1 = doWhiteKingsideCastle
-                                        | from == Coordinate 'e' 1 && to == Coordinate 'c' 1 = doWhiteQueensideCastle
-                                        | from == Coordinate 'e' 8 && to == Coordinate 'g' 8 = doBlackKingsideCastle
-                                        | from == Coordinate 'e' 8 && to == Coordinate 'c' 8 = doBlackQueensideCastle where
+                   , moveTo   = to }  | from == Coordinate 'e' 1 && to == Coordinate 'g' 1 = doWhiteKingsideCastle
+                                      | from == Coordinate 'e' 1 && to == Coordinate 'c' 1 = doWhiteQueensideCastle
+                                      | from == Coordinate 'e' 8 && to == Coordinate 'g' 8 = doBlackKingsideCastle
+                                      | from == Coordinate 'e' 8 && to == Coordinate 'c' 8 = doBlackQueensideCastle where
 
   doWhiteKingsideCastle :: State RegularGame Bool
-  doWhiteKingsideCastle = doCastle [Coordinate 'f' 1, Coordinate 'g' 1] disableWhiteCastles
+  doWhiteKingsideCastle = doCastle' [Coordinate 'f' 1, Coordinate 'g' 1] disableWhiteCastles
     Move { moveFrom = Coordinate 'h' 1
          , moveTo   = Coordinate 'f' 1
          , moveType = Castle
          }
 
   doWhiteQueensideCastle :: State RegularGame Bool
-  doWhiteQueensideCastle = doCastle [Coordinate 'd' 1, Coordinate 'c' 1] disableWhiteCastles
+  doWhiteQueensideCastle = doCastle' [Coordinate 'd' 1, Coordinate 'c' 1] disableWhiteCastles
     Move { moveFrom = Coordinate 'a' 1
          , moveTo   = Coordinate 'd' 1
          , moveType = Castle
          }
 
   doBlackKingsideCastle :: State RegularGame Bool
-  doBlackKingsideCastle = doCastle [Coordinate 'f' 8, Coordinate 'g' 8] disableBlackCastles
+  doBlackKingsideCastle = doCastle' [Coordinate 'f' 8, Coordinate 'g' 8] disableBlackCastles
     Move { moveFrom = Coordinate 'h' 8
          , moveTo   = Coordinate 'f' 8
          , moveType = Castle
          }
 
   doBlackQueensideCastle :: State RegularGame Bool
-  doBlackQueensideCastle = doCastle [Coordinate 'd' 8, Coordinate 'c' 8] disableBlackCastles
+  doBlackQueensideCastle = doCastle' [Coordinate 'd' 8, Coordinate 'c' 8] disableBlackCastles
     Move { moveFrom = Coordinate 'a' 8
          , moveTo   = Coordinate 'd' 8
          , moveType = Castle
@@ -72,25 +72,20 @@ doCastle move@Move { moveFrom = from
   disableBlackCastles :: CastleRights -> CastleRights
   disableBlackCastles (CastleRights woo _ wooo _) = CastleRights woo False wooo False
 
-  doCastle :: [Coordinate] -> (CastleRights -> CastleRights) -> Move -> State RegularGame Bool
-  doCastle castlingSquares fupdaterights rookMove@Move { moveFrom = rookfrom } = do
+  makeCastle :: RegularGame -> [Coordinate] -> (CastleRights -> CastleRights) -> Move -> Maybe RegularGame
+  makeCastle game castlingSquares fUpdateRights rookMove@Move { moveFrom = rookFrom } | isChecked game { placement = positionAfterMove (positionAfterMove (placement game) move) rookMove } = Nothing
+                                                                                      | not $ all (not . isAttacked game) castlingSquares = Nothing
+                                                                                      | otherwise = Just $ game { activeColor = opponent (activeColor game)
+                                                                                                                , castlingRights = fUpdateRights (castlingRights game)
+                                                                                                                , placement = movePiece (movePiece (placement game) (pieceOn $ squareAt (placement game) from) move) (pieceOn $ squareAt (placement game) rookFrom) rookMove
+                                                                                                                }
+
+  doCastle' :: [Coordinate] -> (CastleRights -> CastleRights) -> Move -> State RegularGame Bool
+  doCastle' castlingSquares fupdaterights rookMove = do
     game <- get
-    let position = placement game
-
-    let originalPiece = pieceOn $ squareAt position from
-    let rook = pieceOn $ squareAt position rookfrom
-
-    if (not $ isChecked game { placement = positionAfterMove (positionAfterMove position move) rookMove }) && (all (not . isAttacked game) castlingSquares)
-      then do
-        put $ game { activeColor = opponent (activeColor game)
-                   , castlingRights = fupdaterights (castlingRights game)
-                   }
-
-        doMovePiece originalPiece move
-        doMovePiece rook rookMove
-
-        return True
-    else return False
+    case (makeCastle game castlingSquares fupdaterights rookMove) of
+        (Just nextState) -> put nextState >> return True
+        _                -> return False
 
 doPromotion :: Maybe Piece -> Move -> State RegularGame Bool
 doPromotion p@(Just Piece { pieceType  = _, pieceOwner = _ }) move@Move { moveFrom = _, moveTo = _ } = do
