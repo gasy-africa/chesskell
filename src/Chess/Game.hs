@@ -15,22 +15,21 @@ doMove promoteTo move@Move { moveType = movetype } | movetype == Standard  = doS
                                                    | movetype == Promotion = doPromotion promoteTo move
                                                    | movetype == EnPassant = doEnPassant move
 
+makeStandardMove                                    :: RegularGame -> Move -> Maybe RegularGame
+makeStandardMove game move@Move { moveFrom = from } | not $ move `elem` pseudoLegalMoves game = Nothing
+                                                    | not $ (pieceOwner <$> (pieceOn $ (squareAt (placement game) from))) == (Just $ activeColor game) = Nothing
+                                                    | isChecked game { placement = positionAfterMove (placement game) move } = Nothing
+                                                    | otherwise = Just $ game { activeColor = opponent (activeColor game)
+                                                                              , placement   = movePiece (placement game) (pieceOn $ (squareAt (placement game) from)) move
+                                                                              }
+
+
 doStandardMove                              :: Move -> State RegularGame Bool
 doStandardMove move@Move { moveFrom = from } = do
   game <- get
-  let position = placement game
-
-  let moveIsPseudoLegal = (move `elem` pseudoLegalMoves game)
-  let moveIsByRightPlayer = (pieceOwner <$> (pieceOn $ (squareAt position from))) == (Just (activeColor game))
-
-  if moveIsPseudoLegal && moveIsByRightPlayer && (not $ isChecked game { placement = positionAfterMove position move})
-    then do let originalPiece = pieceOn $ squareAt position from
-
-            put $ game { activeColor = opponent (activeColor game) }
-            doMovePiece originalPiece move
-
-            return True
-    else return False
+  case (makeStandardMove game move) of
+    (Just nextState) -> put nextState >> return True
+    _                -> return False
 
 doCastle                              :: Move -> State RegularGame Bool
 doCastle move@Move { moveFrom = from
