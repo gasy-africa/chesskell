@@ -8,16 +8,15 @@ import Chess.MoveGen
 
 import Data.Maybe
 
+doMove                                             :: Maybe Piece -> Move -> State RegularGame Bool
+doMove promoteTo move@Move { moveType = movetype } | movetype == Standard  = doStandardMove move
+                                                   | movetype == Capture   = doStandardMove move
+                                                   | movetype == Castle    = doCastle move
+                                                   | movetype == Promotion = doPromotion promoteTo move
+                                                   | movetype == EnPassant = doEnPassant move
 
-makeMove                                             :: Maybe Piece -> Move -> State RegularGame Bool
-makeMove promoteTo move@Move { moveType = movetype } | movetype == Standard  = makeStandardMove move
-                                                     | movetype == Capture   = makeStandardMove move
-                                                     | movetype == Castle    = makeCastle move
-                                                     | movetype == Promotion = makePromotion promoteTo move
-                                                     | movetype == EnPassant = makeEnPassant move
-
-makeStandardMove                              :: Move -> State RegularGame Bool
-makeStandardMove move@Move { moveFrom = from } = do
+doStandardMove                              :: Move -> State RegularGame Bool
+doStandardMove move@Move { moveFrom = from } = do
   game <- get
   let position = placement game
 
@@ -33,36 +32,36 @@ makeStandardMove move@Move { moveFrom = from } = do
             return True
     else return False
 
-makeCastle                              :: Move -> State RegularGame Bool
-makeCastle move@Move { moveFrom = from
-                     , moveTo   = to }  | from == Coordinate 'e' 1 && to == Coordinate 'g' 1 = makeWhiteKingsideCastle
-                                        | from == Coordinate 'e' 1 && to == Coordinate 'c' 1 = makeWhiteQueensideCastle
-                                        | from == Coordinate 'e' 8 && to == Coordinate 'g' 8 = makeBlackKingsideCastle
-                                        | from == Coordinate 'e' 8 && to == Coordinate 'c' 8 = makeBlackQueensideCastle where
+doCastle                              :: Move -> State RegularGame Bool
+doCastle move@Move { moveFrom = from
+                     , moveTo   = to }  | from == Coordinate 'e' 1 && to == Coordinate 'g' 1 = doWhiteKingsideCastle
+                                        | from == Coordinate 'e' 1 && to == Coordinate 'c' 1 = doWhiteQueensideCastle
+                                        | from == Coordinate 'e' 8 && to == Coordinate 'g' 8 = doBlackKingsideCastle
+                                        | from == Coordinate 'e' 8 && to == Coordinate 'c' 8 = doBlackQueensideCastle where
 
-  makeWhiteKingsideCastle :: State RegularGame Bool
-  makeWhiteKingsideCastle = doCastle [Coordinate 'f' 1, Coordinate 'g' 1] disableWhiteCastles
+  doWhiteKingsideCastle :: State RegularGame Bool
+  doWhiteKingsideCastle = doCastle [Coordinate 'f' 1, Coordinate 'g' 1] disableWhiteCastles
     Move { moveFrom = Coordinate 'h' 1
          , moveTo   = Coordinate 'f' 1
          , moveType = Castle
          }
 
-  makeWhiteQueensideCastle :: State RegularGame Bool
-  makeWhiteQueensideCastle = doCastle [Coordinate 'd' 1, Coordinate 'c' 1] disableWhiteCastles
+  doWhiteQueensideCastle :: State RegularGame Bool
+  doWhiteQueensideCastle = doCastle [Coordinate 'd' 1, Coordinate 'c' 1] disableWhiteCastles
     Move { moveFrom = Coordinate 'a' 1
          , moveTo   = Coordinate 'd' 1
          , moveType = Castle
          }
 
-  makeBlackKingsideCastle :: State RegularGame Bool
-  makeBlackKingsideCastle = doCastle [Coordinate 'f' 8, Coordinate 'g' 8] disableBlackCastles
+  doBlackKingsideCastle :: State RegularGame Bool
+  doBlackKingsideCastle = doCastle [Coordinate 'f' 8, Coordinate 'g' 8] disableBlackCastles
     Move { moveFrom = Coordinate 'h' 8
          , moveTo   = Coordinate 'f' 8
          , moveType = Castle
          }
 
-  makeBlackQueensideCastle :: State RegularGame Bool
-  makeBlackQueensideCastle = doCastle [Coordinate 'd' 8, Coordinate 'c' 8] disableBlackCastles
+  doBlackQueensideCastle :: State RegularGame Bool
+  doBlackQueensideCastle = doCastle [Coordinate 'd' 8, Coordinate 'c' 8] disableBlackCastles
     Move { moveFrom = Coordinate 'a' 8
          , moveTo   = Coordinate 'd' 8
          , moveType = Castle
@@ -94,8 +93,8 @@ makeCastle move@Move { moveFrom = from
         return True
     else return False
 
-makePromotion :: Maybe Piece -> Move -> State RegularGame Bool
-makePromotion p@(Just Piece { pieceType  = _, pieceOwner = _ }) move@Move { moveFrom = _, moveTo = _ } = do
+doPromotion :: Maybe Piece -> Move -> State RegularGame Bool
+doPromotion p@(Just Piece { pieceType  = _, pieceOwner = _ }) move@Move { moveFrom = _, moveTo = _ } = do
   game <- get
   --if moveIsPseudoLegal && moveIsByRightPlayer && 
   if (not $ isChecked game { placement = positionAfterMove (placement game) move})
@@ -106,8 +105,8 @@ makePromotion p@(Just Piece { pieceType  = _, pieceOwner = _ }) move@Move { move
       return True
     else return False
 
-makeEnPassant   :: Move -> State RegularGame Bool
-makeEnPassant m@Move { moveTo = Coordinate f r
+doEnPassant   :: Move -> State RegularGame Bool
+doEnPassant m@Move { moveTo = Coordinate f r
                      , moveFrom = from } = do
   game <- get
   if (m `elem` pseudoLegalMoves game) && (not $ isChecked game { placement = positionAfterMove (placement game) m })
