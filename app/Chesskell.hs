@@ -2,7 +2,7 @@
 
 module Main where
 
-import Data.Aeson.Encode
+import Data.Aeson
 import Data.Aeson.Types
 
 import Chess.AI
